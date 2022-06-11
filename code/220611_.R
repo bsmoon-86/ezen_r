@@ -232,10 +232,261 @@ bottom10 <- job_income %>%
 bottom10
 
 ggplot(data = top10, 
-       aes(x = job, y=mean_income)
+       aes(x = reorder(job, mean_income) , y=mean_income)
        ) + geom_col() + coord_flip()
 
 ggplot(data = bottom10, 
-       aes(x = job, y = mean_income)
+       aes(x = reorder(job, -mean_income), y = mean_income)
        ) + geom_col() + coord_flip()
+
+## 성별 직업의 빈도 체크
+# 상위 직업 10개 남자, 여자 출력
+
+# 남자의 직업 빈도수 랭킹 10
+# 직장이 존재, 성별이 male인 데이터를 필터링
+# job 컬럼을 기준으로 그룹화
+# 빈도 수 체크 함수(n()함수를 사용)
+# 빈도 수 내림차순 정렬
+# 상위 10개 출력
+
+job_male <- welfare %>% 
+  filter(!is.na(job) & gender == "male") %>% 
+  group_by(job) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  head(10)
+
+job_male
+
+## 여자의 직업 빈도수 랭킹 10
+job_female <- welfare %>% 
+  filter(!is.na(job) & gender == "female") %>% 
+  group_by(job) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  head(10)
+
+job_female
+
+## job_male, job_female 값들을 바 그래프 출력
+
+ggplot(data=job_male, 
+       aes(x = job, y = count))+ geom_col() + coord_flip()
+
+## 그래프의 값이 상위 10개이기 때문에 그래프의 순서를 변경
+ggplot(data=job_male, 
+       aes(x = reorder(job, count), y = count))+ geom_col() + coord_flip()
+
+## female 기준으로 그래프 출력
+
+ggplot(data=job_female, 
+       aes(x = reorder(job, count), y = count)) + geom_col() + coord_flip()
+
+## 종교의 유무에 따라 이혼율이 관계가 있을까?
+## 종교를 가진 사람 데이터의 이혼율 
+## 종교를 가지지 않은 사람의 데이터의 이혼율
+
+table(welfare$religion)
+
+# religion 컬럼의 1은 yes 2는 no
+welfare$religion <- ifelse(welfare$religion == 1, 'yes', 'no')
+
+table(welfare$religion)
+qplot(welfare$religion)
+
+# 이혼여부 파생 변수
+# 0:미성년, 1:기혼, 2:사별, 3:이혼, 4:별거, 5:미혼, 6:기타
+table(welfare$marriage)
+
+welfare$group_marriage <- ifelse(welfare$marriage == 1, "marriage", 
+                          ifelse(welfare$marriage == 3,"divorce", NA))
+table(welfare$group_marriage)
+table(is.na(welfare$group_marriage))
+
+## 종교 컬럼을 전처리 / 이혼 여부 파생변수를 생성
+
+## 이혼 여부의 값이 존재할 경우
+## 종교 여부와 이혼 여부를 기준으로 그룹화
+## 빈도 수 체크해서 컬럼에 삽입
+## 빈도 수의 합을 총 빈도 수 컬럼에 삽입
+## 빈도 수 / 총 빈도수 * 100 -> 이혼율 컬럼에 삽입
+## 이혼율 컬럼에 값을 소수점 1자리까지 유지하고 반올림
+
+religion_marriage <- welfare %>% 
+  filter(!is.na(group_marriage)) %>% 
+  group_by(religion, group_marriage) %>% 
+  summarise(count = n()) %>% 
+  mutate(tot_group = sum(count)) %>% 
+  mutate(pct = round(count/tot_group*100, 1))
+
+religion_marriage
+
+## 종교 별 이혼율 어떤지 시각화
+## religion_marriage 데이터에서 필요한 부분
+## group_marriage 값이 divorce 부분 에서 
+## 컬럼의 값은 religion, pct
+
+divorce <- religion_marriage %>% 
+  filter(group_marriage == "divorce") %>% 
+  select(religion, pct)
+
+divorce
+
+ggplot(data = divorce, aes(x=religion, y = pct)) + geom_col()
+
+## 연령대별 이혼율 출력
+# 연령대(ageg)컬럼과 결혼여부(group_marriage) 컬럼의 값을 기준으로 그룹화
+# 빈도 수(n()) count 파생변수 를 생성
+# 결혼 여부 의 총 빈도수 tot_group 파생변수
+# 이혼율 pct 파생변수 생성
+# 시각화
+
+ageg_marriage <- welfare %>% 
+  filter(!is.na(group_marriage)) %>% 
+  group_by(ageg, group_marriage) %>% 
+  summarise(count = n()) %>% 
+  mutate(tot_group = sum(count)) %>% 
+  mutate(pct = round(count/tot_group*100, 1))
+
+ageg_marriage
+
+# 결혼의 상태가 이혼이고 초년생들을 제외
+ageg_divorce <- ageg_marriage %>% 
+  filter(ageg != "young" & group_marriage == "divorce") %>% 
+  select(ageg, pct)
+
+ageg_divorce
+
+ggplot(data = ageg_divorce, aes(x = ageg, y = pct)) + geom_col()
+
+## 연령대, 종교 유무, 이혼율 분석
+# group_marriage에 결측치 제외
+# 그룹화 ageg, religion, group_marriage
+# 빈도 수
+# 총 빈도 수 tot_group 생성
+# pct 이혼율 생성
+
+ageg_religion_marriage <- welfare %>% 
+  filter(!is.na(group_marriage) & ageg != "young") %>% 
+  group_by(ageg, religion, group_marriage) %>% 
+  summarise(count = n()) %>% 
+  mutate(tot_group = sum(count)) %>% 
+  mutate(pct = round(count/tot_group*100, 1))
+
+ageg_religion_marriage
+
+# 이혼 상태인 데이터 출력
+
+ageg_religion_divorce <- ageg_religion_marriage %>% 
+  filter(group_marriage == "divorce") %>% 
+  select(ageg, religion, pct)
+
+ageg_religion_divorce
+
+ggplot(data = ageg_religion_divorce, 
+       aes(x=ageg, y=pct, fill=religion)) + geom_col()
+
+# 바를 분리하여 그래프 표시
+
+ggplot(data = ageg_religion_divorce, 
+       aes(x=ageg, y=pct, fill=religion)) + geom_col(position="dodge")
+
+list_region <- data.frame(code_region = c(1:7),
+                          region = c("서울",
+                                     "수도권(인천/경기)",
+                                     "부산/경남/울산",
+                                     "대구/경북",
+                                     "대전/충남",
+                                     "강원/충북",
+                                     "광주/전남/전북/제주"))
+list_region
+## welfare 데이터프레임에 list_region 데이터프레임 결합 
+## 공통적인 값 code_region
+
+welfare <- left_join(welfare, list_region, id = "code_gerion")
+welfare %>% 
+  select(code_region, region) %>% 
+  head()
+
+## 지역별 연령대가 어떻게 구성이 되어있는지를 확인
+## 그룹화 지역과 연령대
+## 연령대의 빈도 수를 count컬럼 생성 삽입
+## 총 빈도 수 컬럼 (tot_group) 생성 지역별 총 빈도수 삽입
+## 각 연령별 지역의 비율 (count / tot_group * 100) 소수점 없애고 반올림
+## 바 그래프 출력 
+
+table(welfare$region)
+table(is.na(welfare$region))
+
+region_ageg <- welfare %>% 
+  filter(!is.na(welfare$region)) %>% 
+  group_by(region, ageg) %>% 
+  summarise(count = n()) %>% 
+  mutate(tot_group = sum(count)) %>% 
+  mutate(pct = round(count/tot_group*100, 0))
+
+region_ageg  
+  
+ggplot(data = region_ageg, 
+       aes(x = region, y = pct, fill = ageg)
+       ) + geom_col() + coord_flip()
+
+ggplot(data = region_ageg, 
+       aes(x = region, y = pct, fill = ageg)
+) + geom_col(position = 'dodge') + coord_flip()
+  
+## 지역 코드의 순서대로 변경.
+## scale_x_discrete() 옵션을 사용해서 x축을 순서 변경
+## c("지역명", ..) 적어줘도 무관
+
+order <- list_region$region
+order
+
+ggplot(data = region_ageg, 
+       aes(x = region, y = pct, fill = ageg)
+) + geom_col() + coord_flip() + scale_x_discrete(limits = order)
+
+## 노년층의 비율이 높은 순으로 막대그래프 정렬
+
+list_order_old <- region_ageg %>% 
+  filter(ageg == "old") %>% 
+  arrange(pct)
+list_order_old
+
+order <- list_oeder_old$region
+
+ggplot(data = region_ageg, 
+       aes(x = region, y = pct, fill = ageg)
+) + geom_col() + coord_flip() + scale_x_discrete(limits = order)
+
+## 바형 그래프 바의 순서를 변경
+class(region_ageg$ageg)
+levels(region_ageg$ageg)
+
+
+## factor 범주형 데이터형
+
+region_ageg$ageg <- factor(region_ageg$ageg, 
+                           level = c("old", "middle", "young"))
+class(region_ageg$ageg)
+levels(region_ageg$ageg)
+## factor 형태의 데이터에 level을 지정해주고 
+## 그래프를 바형 그래프를 그리면 level의 순서대로 그래프가 그려진다. 
+ggplot(data = region_ageg, 
+       aes(x = region, y = pct, fill = ageg)
+) + geom_col() + coord_flip() + scale_x_discrete(limits = order)
+
+## 노년이 가장 많은 순서대로 그래프 지역이 표시
+## 초년이 가장 많은 순서대로 그래프 표시
+
+list_order_young <- region_ageg %>% 
+  filter(ageg == "young") %>% 
+  arrange(pct)
+list_order_young
+
+order <- list_order_young$region
+
+ggplot(data = region_ageg, 
+       aes(x = region, y = pct, fill = ageg)
+) + geom_col() + coord_flip() + scale_x_discrete(limits = order)
 
